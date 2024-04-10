@@ -1,0 +1,77 @@
+version: '3'
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    env_file:
+      - ./frontend/.env
+    volumes:
+      - ./frontend/app/public:/app/public
+      - ./frontend/app/src:/app/src
+    ports:
+      - "3000:3000"
+
+  api-server:
+    build:
+      context: ./api-server
+      dockerfile: Dockerfile
+    container_name: api-server
+    env_file:
+      - ./api-server/.env
+    volumes:
+      - ./api-server/src:/app/src
+    ports:
+      - "5000:5000"
+
+  # voicevox_server:
+  #   # 例としての音声合成サーバ
+  #   image: voicevox/voicevox_engine:nvidia-latest
+  #   container_name: voicevox
+  #   ports:
+  #     - "50021:50021"
+  #   environment:
+  #     - CUDA_VISIBLE_DEVICES=1
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 2
+  #             capabilities: [ "gpu" ]
+
+  # pyserver:
+  #   # RAG用のサーバ
+  #   build:
+  #     context: ./pyserver
+  #     dockerfile: Dockerfile
+  #   container_name: pyserver
+  #   ports:
+  #     - "5005:5005"
+  #     - "5006:5006"
+  #   volumes:
+  #     - ~/docker_projects/viida-beta/pyserver/src:/app
+  #   depends_on:
+  #     - backend
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 2
+  #             capabilities: [ "gpu" ]
+
+  mongodb:
+    image: mongo:latest
+    restart: always
+    container_name: mongodb
+    # user: "132:65534"  # ホストマシンにおけるmongodbのUIDとGID
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    ports:
+      - 27017:27017 # host:container
+    volumes:
+      - ./mongoDB:/var/lib/mongo
