@@ -17,7 +17,6 @@ export const Demo = () => {
   const init = async ()=>{
     const vad = await MicVAD.new()
     vad.start()
-    console.log(vad.stream)
   }
   useEffect(()=>{
     init()
