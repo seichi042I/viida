@@ -1,20 +1,35 @@
-import express, { Express, Request, Response } from 'express';
-import path from 'path';
-import cors from 'cors';
-import { fileURLToPath } from 'url';
+import https from 'https';
+import { WebSocketServer } from 'ws';
+import fs from 'fs';
 
-const app: Express = express();
-const port: string | number = 5000;
+const options: https.ServerOptions = {
+    key: fs.readFileSync('server.key'),
+    cert: fs.readFileSync('server.crt'),
+    minVersion: 'TLSv1.2',
+    maxVersion: 'TLSv1.3',
+    ciphers: 'TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384'
+};
 
-// __dirnameを置き換えるための設定
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const server = https.createServer(options, (req, res) => {
+  res.writeHead(200);
+  res.end('Hello, world!');
+})
 
-app.use(cors());
-app.get('*', (req: Request, res: Response) => {
-    res.send("nodejs server is running...")
+const wss = new WebSocketServer({ server });
+
+wss.on('connection', (ws) => {
+  console.log('WebSocket connected');
+
+  ws.on('message', (message) => {
+    console.log(`Received message: ${message}`);
+    ws.send(`You sent: ${message}`);
+  });
+
+  ws.on('close', () => {
+    console.log('WebSocket disconnected');
+  });
 });
 
-app.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
+server.listen(5000, () => {
+  console.log('Server running on https://localhost');
 });
