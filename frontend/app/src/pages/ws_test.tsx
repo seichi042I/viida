@@ -1,27 +1,29 @@
 import React from "react";
+import { useRef } from "react";
+import WebSocketHandler from "@/Modules/WebSocketHandler";
+import EventEmitter from "eventemitter3";
+import IncrementalTextDisplay from "@/Components/Molecules/Containers/IncrementalTextDisplay";
+import ArrowUpButton from "@/Components/Molecules/Inputs/ArrowUpButton";
 
 const WSTest = () => {
-    const socket = new WebSocket('wss://localhost:5000');
-    // const [serverMSG,setServerMSG] = useState()
-    socket.addEventListener('open', (event: Event) => {
-      console.log('WebSocket connected');
-      socket.send('Hello, server!');
-    });
-    
-    socket.addEventListener('message', (event: MessageEvent) => {
-      console.log(`Received message: ${event.data}`);
+  const eeRef = useRef(new EventEmitter())
+  const wshRef = useRef(new WebSocketHandler(eeRef.current))
+  const receivedMessageRef = useRef("")
 
-    });
-    
-    socket.addEventListener('close', (event: CloseEvent) => {
-      console.log('WebSocket disconnected');
-    });
+  eeRef.current.on('wsh:onmessage', (event) => {
+    console.log("logging by event emitter")
+    receivedMessageRef.current = ""
+    setTimeout(() => {
+      receivedMessageRef.current = event.data
+    }, 100);
+  })
 
-    return (
-        <div>
-            WebSocket Test.
-        </div>
-        )
+  return (
+    <div style={{ background: 'black' }}>
+      <ArrowUpButton onClick={() => { wshRef.current.sendMessage("text", "ボダンが押されました!") }} />
+      <IncrementalTextDisplay contentRef={receivedMessageRef} textColor="white" />
+    </div>
+  )
 }
 
 export default WSTest
