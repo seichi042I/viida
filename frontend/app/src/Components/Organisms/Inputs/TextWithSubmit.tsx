@@ -1,6 +1,6 @@
 import { MutableRefObject, useRef, } from "react";
 import React from "react";
-import ArrowUpButton from "../../Molecules/Inputs/ArrowUpButton";
+import IconButton from "../../Molecules/Inputs/IconButton";
 import type { IconButtonProps } from "../../Molecules/Inputs/Interface";
 import styled, { css } from "styled-components";
 
@@ -56,14 +56,12 @@ const TextInput = styled.input<TextInputProps>`
   border-radius: 9999px;
 `
 
-export default ({ iconButtonProps = {}, textInputRef = undefined, onClick = () => { }, width = "15em", height = "2em", ...props }: TextWithSubmitProps) => {
-  iconButtonProps['width'] = height
-  iconButtonProps['height'] = height
+export default ({ iconButtonProps = {iconName:"arrow_up"}, textInputRef = undefined, onClick = () => { }, width = "256px", height = "32px", ...props }: TextWithSubmitProps) => {
 
   return (
     <Container width={width} height={height} {...props}>
       <TextInput ref={textInputRef} type="text" />
-      <ArrowUpButton onClick={onClick} {...iconButtonProps} />
+      <IconButton onClick={onClick} buttonProps={{"width":height,"height":height}} {...iconButtonProps}/>
     </Container>
   )
 }

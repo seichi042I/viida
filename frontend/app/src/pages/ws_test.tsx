@@ -30,9 +30,9 @@ const WSTest = () => {
 
   return (
     <div style={{ background: 'black' }}>
-      <TextWithSubmit textInputRef={textInputRef} onClick={promptSubmit} />
       {/* <ArrowUpButton onClick={() => { receivedMessageRef.current += '\n'; wshRef.current.sendMessage("user_prompt", "初めまして。私はユーザです。今日からあなたのお世話をすることになりました。"); }} /> */}
       <IncrementalTextDisplay contentRef={receivedMessageRef} textColor="white" />
+      <TextWithSubmit textInputRef={textInputRef} onClick={promptSubmit} width="100%"/>
     </div>
   )
 }
