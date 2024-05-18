@@ -1,5 +1,5 @@
 import React from "react";
-import GoodIcon from "../../Atoms/Icons/GoodIcon";
+import GoodIcon from "../../Atoms/Icons/Good";
 import Button from "../../Atoms/Inputs/Button";
 import type { IconButtonProps } from "./Interface";
 

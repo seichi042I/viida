@@ -1,13 +1,13 @@
 import { StoryObj,Meta } from "@storybook/react";
-import GoodIcon from "./GoodIcon";
+import Icon from "./SVGIcon";
 
 const meta = {
-    component:GoodIcon,
-    title:'Components/Atoms/Icons/GoodIcon',
+    component:Icon,
+    title:'Components/Atoms/Icons/Icon',
     args:{
-
+        iconName:'good'
     }
-} satisfies Meta<typeof GoodIcon>
+} satisfies Meta<typeof Icon>
 
 export default meta;
 type Story = StoryObj<typeof meta>
