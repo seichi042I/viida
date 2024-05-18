@@ -22,8 +22,8 @@ ENV LANGUAGE=ja_JP:ja
 ENV LC_ALL=ja_JP.UTF-8
 
 #認証情報
-COPY server.crt /app/server.crt
-COPY server.key /app/server.key
+# COPY server.crt /app/server.crt
+# COPY server.key /app/server.key
 
 
 CMD ["npm", "start"]
