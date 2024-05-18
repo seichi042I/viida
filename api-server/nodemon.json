@@ -2,7 +2,12 @@
     "execMap": {
         "ts": "node --loader ts-node/esm"
     },
+    "ext": "ts,json",
+    "typescript": {
+        "module": "ES2020"
+    },
     "watch": [
+        "src",
         "**/*.ts"
     ]
 }

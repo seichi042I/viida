@@ -16,15 +16,16 @@ const IncrementalTextDisplay = memo<IncrementalTextDisplayProps>(({ contentRef =
     const displaiedTextRef = useRef('')
 
     useEffect(() => {
+        console.log("init")
         setInterval(() => {
             if (contentRef.current !== null && displaiedTextRef.current !== null) {
                 if (contentRef.current.length !== displaiedTextRef.current.length) {
                     const displaiedIdx = displaiedTextRef.current.length
                     displaiedTextRef.current = contentRef.current.slice(0, displaiedIdx + 1)
                     if (elementRef.current) {
-                        const corsor = elementRef.current.innerHTML.slice(displaiedIdx)
+                        const corsor = elementRef.current.innerHTML.slice(elementRef.current.innerText.replace('\n', '<br>\n').length)
                         elementRef.current.innerText = displaiedTextRef.current;
-                        elementRef.current.innerHTML += corsor;
+                        // elementRef.current.innerHTML += corsor;
                     }
                 } else {
 
@@ -34,7 +35,7 @@ const IncrementalTextDisplay = memo<IncrementalTextDisplayProps>(({ contentRef =
     }, [])
 
     return (
-        <div style={{ display: "inline", color: props.textColor }} ref={elementRef}>
+        <div className='text-xl' style={{ display: "inline", color: props.textColor }} ref={elementRef}>
             <OrnamentalCursor />
         </div>
     )

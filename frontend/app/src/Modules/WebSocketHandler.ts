@@ -32,7 +32,7 @@ class WebSocketHandler {
 
     onOpen(event: Event) {
         console.log('WebSocket connected');
-        this.ws.send("hello server")
+        this.ws.send(JSON.stringify({ type: "null", data: "" }))
         this.ee.emit('wsh:onopen', event)
     }
 
