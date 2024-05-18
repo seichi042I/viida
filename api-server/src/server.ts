@@ -6,13 +6,13 @@ import ChatGPTHandler from './Modules/ChatGPTHandler.mts';
 import EventEmitter from 'eventemitter3';
 
 // HTTPSサーバのオプション
-const httpsOptions: https.ServerOptions = {
-  key: fs.readFileSync('server.key'),
-  cert: fs.readFileSync('server.crt'),
-  minVersion: 'TLSv1.2',
-  maxVersion: 'TLSv1.3',
-  ciphers: 'TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384'
-};
+// const httpsOptions: https.ServerOptions = {
+//   key: fs.readFileSync('server.key'),
+//   cert: fs.readFileSync('server.crt'),
+//   minVersion: 'TLSv1.2',
+//   maxVersion: 'TLSv1.3',
+//   ciphers: 'TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384'
+// };
 
 // HTTPサーバの作成
 const httpServer = http.createServer((req, res) => {
@@ -21,10 +21,10 @@ const httpServer = http.createServer((req, res) => {
 });
 
 // HTTPSサーバの作成
-const httpsServer = https.createServer(httpsOptions, (req, res) => {
-  res.writeHead(200);
-  res.end('Hello, world! (HTTPS)');
-});
+// const httpsServer = https.createServer(httpsOptions, (req, res) => {
+//   res.writeHead(200);
+//   res.end('Hello, world! (HTTPS)');
+// });
 
 // WebSocketサーバの作成と設定
 const setupWebSocketServer = (server: any) => {
@@ -59,13 +59,13 @@ const setupWebSocketServer = (server: any) => {
 
 // HTTPおよびHTTPSサーバにWebSocketサーバを設定
 setupWebSocketServer(httpServer);
-setupWebSocketServer(httpsServer);
+// setupWebSocketServer(httpsServer);
 
 // サーバの起動
 httpServer.listen(5000, () => {
   console.log('HTTP Server running on http://localhost:5000');
 });
 
-httpsServer.listen(5001, () => {
-  console.log('HTTPS Server running on https://localhost:5001');
-});
+// httpsServer.listen(5001, () => {
+//   console.log('HTTPS Server running on https://localhost:5001');
+// });
