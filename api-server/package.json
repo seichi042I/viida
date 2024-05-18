@@ -9,17 +9,18 @@
     "@types/jest": "^27.5.2",
     "@types/node": "^20.11.28",
     "@types/ws": "8.5.10",
-    "nodemon": "^3.1.0",
     "cors": "^2.8.5",
+    "eventemitter3": "5.0.1",
     "express": "^4.18.3",
-    "ws": "^8.16.0",
+    "nodemon": "^3.1.0",
+    "openai": "4.47.1",
     "react": "^18.2.0",
     "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.4.2",
-    "eventemitter3": "5.0.1",
-    "openai": "4.47.1"
+    "ws": "^8.16.0"
   },
   "scripts": {
-    "start": "nodemon src/server.ts"
+    "start": "nodemon"
   }
 }

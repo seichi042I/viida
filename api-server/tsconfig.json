@@ -7,7 +7,7 @@
       "dom.iterable",
       "esnext"
     ],
-    "allowJs": true,
+    "allowJs": false,
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
@@ -20,10 +20,18 @@
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "src/*"
+      ]
+    }
+  },
+  "ts-node": {
+    "esm": true,
+    "experimentalSpecifierResolution": "node"
   },
   "include": [
-    "**/*.ts",
-    "src/Modules/TestModule.mts",
-    "src/Modules/ChatGPTHandler.mts",
-  ],
+    "**/*.ts"
+  ]
 }

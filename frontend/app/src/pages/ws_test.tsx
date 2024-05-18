@@ -3,7 +3,6 @@ import { useRef } from "react";
 import WebSocketHandler from "@/Modules/WebSocketHandler";
 import EventEmitter from "eventemitter3";
 import IncrementalTextDisplay from "@/Components/Molecules/Containers/IncrementalTextDisplay";
-import ArrowUpButton from "@/Components/Molecules/Inputs/ArrowUpButton";
 import TextWithSubmit from "@/Components/Organisms/Inputs/TextWithSubmit";
 
 const WSTest = () => {
@@ -29,10 +28,14 @@ const WSTest = () => {
   }
 
   return (
-    <div style={{ background: 'black' }}>
-      {/* <ArrowUpButton onClick={() => { receivedMessageRef.current += '\n'; wshRef.current.sendMessage("user_prompt", "初めまして。私はユーザです。今日からあなたのお世話をすることになりました。"); }} /> */}
+    <div className="flex-1 overflow-auto mb-4" >
       <IncrementalTextDisplay contentRef={receivedMessageRef} textColor="white" />
-      <TextWithSubmit textInputRef={textInputRef} onClick={promptSubmit} width="100%"/>
+      <TextWithSubmit
+        className="w-full mt-auto text-sm sm:text-base md:text-lg lg:text-xl"
+        textInputRef={textInputRef}
+        onClick={promptSubmit}
+        height="3em"
+      />
     </div>
   )
 }

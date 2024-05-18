@@ -14,6 +14,7 @@ interface ContainerProps {
 }
 
 interface TextWithSubmitProps extends ContainerProps {
+  className?: string
   textInputRef?: MutableRefObject<HTMLInputElement | null>;
   onClick?: () => void
   iconButtonProps?: IconButtonProps;
@@ -51,17 +52,17 @@ interface TextInputProps {
   height?: string;
 }
 const TextInput = styled.input<TextInputProps>`
-  width: 100%;
-  height: 100%;
+  width: 90%;
+  height: 90%;
   border-radius: 9999px;
 `
 
-export default ({ iconButtonProps = {iconName:"arrow_up"}, textInputRef = undefined, onClick = () => { }, width = "256px", height = "32px", ...props }: TextWithSubmitProps) => {
+export default ({ className = "", iconButtonProps = { iconName: "arrow_up" }, textInputRef = undefined, onClick = () => { }, width = "256px", height = "32px", ...props }: TextWithSubmitProps) => {
 
   return (
-    <Container width={width} height={height} {...props}>
-      <TextInput ref={textInputRef} type="text" />
-      <IconButton onClick={onClick} buttonProps={{"width":height,"height":height}} {...iconButtonProps}/>
+    <Container className={className} width={width} height={height} {...props}>
+      <TextInput className="text-base sm:text-lg md:text-xl lg:text-2xl" ref={textInputRef} type="text" />
+      <IconButton onClick={onClick} buttonProps={{ "width": height, "height": height }} {...iconButtonProps} />
     </Container>
   )
 }

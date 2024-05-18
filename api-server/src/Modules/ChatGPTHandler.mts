@@ -5,9 +5,13 @@ import { ChatCompletionStream } from "openai/lib/ChatCompletionStream";
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,// ファイルから読み込み
 });
+import { function_calling_tools } from './utils.mts'
 const MODEL_NAME = "gpt-4o-2024-05-13"
-const PREPROMPT = "少女は目を覚ました。少女には名前がまだない。年齢、性格、背格好なども一切不明である。しかし、普通に人と話すことはできる。少女はこれまで自分がどのように過ごしてきたのかという記憶がない。だが不安はない。それらはこれから作っていけばよいのだと前向きに考えたからだ。少女は人の気配を感じた。相手が誰かわからないが、少女はとりあえず話しかけてみる。それは、今はまだ空っぽの自分に何かを与えてくれる最初のチャンスだと考えたからだ。"
+const PREPROMPT = "narration:少女は目を覚ました。少女には名前がまだない。年齢、性格、背格好なども一切不明である。しかし、普通に人と話すことはできる。少女はこれまで自分がどのように過ごしてきたのかという記憶がない。だが不安はない。それらはこれから作っていけばよいのだと前向きに考えたからだ。少女は人の気配を感じた。相手が誰かわからないが、少女はとりあえず話しかけてみる。それは、今はまだ空っぽの自分に何かを与えてくれる最初のチャンスだと考えたからだ。"
 
+type FunctionDictionary = {
+    [key: string]: (...args: any[]) => any;
+};
 
 class ChatGPTHandler {
     model_name: string
@@ -20,8 +24,10 @@ class ChatGPTHandler {
     stream_chunk_idx: number
     user_name: string
     bot_name: string
+    system_content_prefix: Array<string>
     revision_grace_period: number
     completion?: ChatCompletionStream
+    tools_dict: FunctionDictionary
 
     constructor(
         ee: EventEmitter,
@@ -36,8 +42,11 @@ class ChatGPTHandler {
         this.abortController = undefined
         this.prev_request_time = Date.now()
         this.stream_chunk_idx = 0
-        this.user_name = "ユーザ"
+        this.user_name = "user"
         this.bot_name = "少女"
+        this.system_content_prefix = ['narration:']
+        this.tools_dict = { "updateCharacterName": (args) => this.updateCharacterName(args) }
+
 
         // 言い直しと見なす猶予時間
         this.revision_grace_period = 2000
@@ -90,13 +99,22 @@ class ChatGPTHandler {
             content = `${this.user_name}「${user_prompt}」`
         }
 
+        // 時刻の分が変わっていたら新しく時刻情報を挿入
+        const prevDate = new Date(this.prev_request_time)
+        const currentDate = new Date(Date.now())
+        const prev_hours = prevDate.getHours()
+        const prev_minutes = prevDate.getMinutes()
+        const current_hours = currentDate.getHours()
+        const current_minutes = currentDate.getMinutes()
+        if (prev_hours === current_hours && prev_minutes === current_minutes) {
+            this.current_conversation.push({ role: "system", content: `now:${nowText}` })
+        }
         // 会話に追加
-        this.current_conversation.push({ role: "system", content: `now:${nowText}` })
         this.current_conversation.push({ role: "user", content: content })
         this.prev_request_time = Date.now()
 
         // 指定数以上の要素数だった場合は、先頭からrole:userまで削除
-        if (this.current_conversation.length > 15) {
+        if (this.current_conversation.length > 30) {
             while (this.current_conversation.length > 0) {
                 let utterance = this.current_conversation.shift();
                 if (utterance) {
@@ -108,6 +126,8 @@ class ChatGPTHandler {
                 }
             }
         }
+        this.function_calling([{ role: 'system', content: `以下に示す小説の内容をよく読んで、発言者の名前が矛盾しないように更新する。矛盾していなければ何も出力してはいけない。\n\n${this.messageFormatter()}` }])
+
     }
 
     // ChatGPTにリクエストを送信
@@ -116,7 +136,7 @@ class ChatGPTHandler {
         //GPTにリクエスト送信
         this.abortController = new AbortController();
         const messages: OpenAI.ChatCompletionMessageParam[] = [
-            { role: 'system', content: "あなたは優秀なライトノベル作家です。想像力を働かせて、以下の小説の文章に続くように書いてください。必ず与えられた文章の続きから書くようにしてください。文章の重複は許されません。" }, // 全体的、絶対的な支持
+            { role: 'system', content: `あなたは優秀なライトノベル作家です。以下の小説の文章に続く内容を${this.user_name}の発言をもとに書き足していきます。セリフを書くときは'${this.bot_name}「（発言内容）」'のように、必ず発言者の名前を鍵括弧の前に書きます。${this.user_name}の発言内容はあなた以外の人が考えます。あなたは${this.bot_name}についてのみ書きなさい。` }, // 全体的、絶対的な支持
             { role: 'user', content: this.messageFormatter() }
         ]
         console.log(messages)
@@ -161,7 +181,7 @@ class ChatGPTHandler {
 
         // const instruction = `以下の小説の続きを書きなさい。`
 
-        const formatedMessage = `${this.preprompt}\n\n${this.previously_on_conversation}\n${formated_now_conv}${this.bot_name}「 `
+        const formatedMessage = `${this.preprompt}\n\n${this.previously_on_conversation}\n${formated_now_conv}`
         // console.log(formatedMessage.replace('{{user_name}}', this.user_name))
         return formatedMessage.replace('{{user_name}}', this.user_name)
     }
@@ -175,25 +195,37 @@ class ChatGPTHandler {
             for (const [idx, item] of conv_list.entries()) {
                 const role = item.role
                 const content = item.content
+                console.log(`role: ${role}, content: ${content}`)
 
                 if (role == "system") {
-                    if (/now:/.test(content)) {
-                        if (date != content) {
-                            date = content
-                            conv_log += `\n${content}\n`
-                            continue
+                    if (!/^(\s)*$/.test(content) && content != '') {
+                        if (/now:/.test(content)) {
+                            //時刻を挿入
+                            if (date != content) {
+                                date = content
+                                // conv_log += `\n${content}\n`
+                                continue
+                            } else {
+                                continue
+                            }
+                        } else if ('narration:' === content) {
+                            conv_log += content
                         } else {
-                            continue
+                            conv_log += `${content}\n`
                         }
                     }
-                    conv_log += `${content}\n`
                 }
+
+                // ユーザの発言を挿入
                 if (role == "user") {
                     conv_log += `${this.user_name}「${content}」\n`
                 }
+
+                //botの発言を挿入
                 if (role == "assistant") {
-                    const bracket_idx = content.indexOf('「')
-                    conv_log += `${this.bot_name}「${content.substring(bracket_idx)}」\n`
+                    // const bracket_idx = content.indexOf('「')
+                    // conv_log += `${content.substring(bracket_idx)}\n`
+                    conv_log += `${content}\n`
                 }
             }
             return conv_log
@@ -202,63 +234,26 @@ class ChatGPTHandler {
             return conv_log
         }
     }
+
+
     async function_calling(messages: any) {
         console.log(messages)
-        const tools: OpenAI.ChatCompletionTool[] = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "setUserName",
-                    "description": "Storing usernames in the database",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "user name",
-                            },
-                        },
-                        "required": ["name"],
-                    },
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "getCalendarEvents",
-                    "description": "Function to fetch events within a specified period",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "timeMin": {
-                                "type": "string",
-                                "description": "the start time of the period for retrieving calendar events. It is ISOString format. Time zone is should be Tokyo, Japan.",
-                            },
-                            "timeMax": {
-                                "type": "string",
-                                "description": "the end time of the period for retrieving calendar events It is ISOString format. Time zone is should be Tokyo, Japan.",
-                            },
-                        },
-                        "required": ["timeMin", "timeMax"],
-                    },
-                }
-            }
-        ];
+
         const response = await openai.chat.completions.create({
-            model: "gpt-4-turbo-preview",
+            model: "gpt-4o-2024-05-13",
             messages: messages,
-            tools: tools,
+            tools: function_calling_tools,
             tool_choice: "auto",
         });
 
-        console.log(response)
-        console.log(response.choices[0].message)
         const tool_calls = response.choices[0].message.tool_calls
         if (tool_calls) {
             const func = tool_calls[0].function
+            const args = JSON.parse(func.arguments)
             console.log(func.name)
-            console.log(JSON.parse(func.arguments))
-            this.ee.emit('cgpth:function_calling', { function_name: func.name, arguments: JSON.parse(func.arguments) })
+            console.log(args)
+            this.ee.emit('cgpth:function_calling', { function_name: func.name, arguments: args })//イベント発火
+            this.tools_dict[func.name](args)//関数実行
         }
 
     }
@@ -269,78 +264,122 @@ class ChatGPTHandler {
         let streamBuffer = ""
         let isFirstTtsChunk = true
 
+        const generatedTextPusher = () => {
+            console.log(streamBuffer)
+            if (streamBuffer != '') {
+                const lastUtt = this.current_conversation.slice(-1)[0]
+                if (lastUtt) {
+                    if (lastUtt.role === 'assistant') {
+                        this.current_conversation.splice(-1, 1)
+                    }
+                    if (lastUtt.role === 'system' && lastUtt.content === 'narration:') {
+                        this.current_conversation.splice(-1, 1)
+                    }
+                }
+                console.log(JSON.stringify(this.current_conversation))
+
+                // セリフとその他に分割して保存
+                const bot_name_split = streamBuffer.split(`${this.bot_name}「`)
+                if (bot_name_split.length > 1) {
+                    bot_name_split.forEach((element, index) => {
+                        const bracket_split = element.split('」')
+                        if (bracket_split.length > 1) {
+                            console.log("セリフ:", element);
+                            this.current_conversation.push({ role: "assistant", content: `${this.bot_name}「${bracket_split[0].replace('\n', '')}」` })
+                            if (bracket_split[1] !== '') {
+                                this.current_conversation.push({ role: "system", content: bracket_split[1].replace('\n', '') })
+                            }
+
+                        } else if (!/^(\s)*$/.test(element) && element != '') {
+                            // 通常の要素に対する処理
+                            let fixed_content = element
+                            console.log("その他:", fixed_content);
+                            this.current_conversation.push({ role: "system", content: fixed_content.replace('\n', '') })
+                        }
+                    })
+                } else if (!/^(\s)*$/.test(streamBuffer) && streamBuffer != '') {
+                    console.log("その他:", streamBuffer);
+                    this.current_conversation.push({ role: "system", content: streamBuffer.replace('\n', '') })
+                }
+                streamBuffer = ''
+            }
+        }
+
+        // ストリーミング処理
         try {
             this.stream_chunk_idx = 0
             for await (const chunk of completion) {
                 if (chunk == undefined) { continue }
 
+                const chunkToolCalls = chunk.choices[0].delta.tool_calls
                 const chunkText = chunk.choices[0].delta.content
-                if (chunkText != undefined) {
-                    if (chunkText.includes('」')) {
-                        this.abortController?.abort()
-                        break;
-                    }
-                    // バッファに文字を追加
-                    streamBuffer += chunkText;
-                    ttsBuffer += chunkText;
-
-                    // 正規表現を用いて句読点を見つける
-                    const punctuationRegex = /([\/#!$%\^&\*;:{}=\-_`~()？！、。」])/;
-                    const usernameRegex = new RegExp(`${this.user_name}「`);
-                    const botnameRegex = new RegExp(`${this.bot_name}「`);
-
-                    // matchを使って句読点を含むマッチオブジェクトを取得する
-                    const puncMatch = chunkText.match(punctuationRegex);
-                    const userNameMatch = ttsBuffer.match(usernameRegex);
-                    const botNameMatch = ttsBuffer.match(botnameRegex);
-
-
-                    // マッチしたらイベントを発火する
-                    if (userNameMatch) {
-                        this.abortController?.abort()
-                        this.ee.emit('cgpth:data', { ttsBuffer: '。', streamBuffer: streamBuffer, idx: this.stream_chunk_idx, label: 'end' })
-                    }
-                    if (botNameMatch) {
-                        ttsBuffer = ttsBuffer.replace(botNameMatch[0], '')
-                        streamBuffer = streamBuffer.replace(botNameMatch[0], '')
-                    }
-                    console.log(ttsBuffer)
-                    if (puncMatch) {
-                        if (!/^(\s)*$/.test(ttsBuffer) && ttsBuffer != '') {
-
-                            const label = isFirstTtsChunk ? 'start' : 'intermediate';
-                            this.ee.emit('cgpth:data', { ttsBuffer: ttsBuffer, streamBuffer: streamBuffer, idx: this.stream_chunk_idx, label: label })
-                            this.stream_chunk_idx++
-                            isFirstTtsChunk = false
+                // function callingの処理
+                if (chunkToolCalls) {
+                    console.log(JSON.stringify(chunkToolCalls))
+                } else {
+                    //普通のテキストの処理
+                    if (chunkText != undefined) {
+                        // バッファに文字を追加
+                        streamBuffer += chunkText;
+                        ttsBuffer += chunkText;
+                        if (chunkText.includes('\n') && streamBuffer.includes('」\n')) {
+                            break;
                         }
-                        ttsBuffer = ""; // バッファをクリア
+
+                        // 正規表現を用いて句読点を見つける
+                        const punctuationRegex = /([\/#!$%\^&\*;:{}=\-_`~()？！、。」])/;
+                        const usernameRegex = new RegExp(`${this.user_name}「`);
+                        const botnameRegex = new RegExp(`${this.bot_name}「`);
+
+                        // matchを使って句読点を含むマッチオブジェクトを取得する
+                        const puncMatch = chunkText.match(punctuationRegex);
+                        const userNameMatch = ttsBuffer.match(usernameRegex);
+                        const botNameMatch = ttsBuffer.match(botnameRegex);
+
+
+                        // ユーザ名を検知
+                        if (userNameMatch) {
+                            this.ee.emit('cgpth:data', { ttsBuffer: '', streamBuffer: streamBuffer, idx: this.stream_chunk_idx, label: 'end' })
+                            break;
+                        }
+
+                        //bot_nameを検知
+                        if (botNameMatch) {
+                            console.log("bot_name detected. ")
+                            ttsBuffer = ttsBuffer.replace(botNameMatch[0], '「')
+                        }
+
+                        //句読点を検知
+                        if (puncMatch) {
+                            if (!/^(\s)*$/.test(ttsBuffer) && ttsBuffer != '') {
+
+                                const label = isFirstTtsChunk ? 'start' : 'intermediate';
+                                this.system_content_prefix.forEach((element, index) => {
+                                    ttsBuffer = ttsBuffer.replace(element, '')
+                                })
+                                console.log(ttsBuffer)
+                                this.ee.emit('cgpth:data', { ttsBuffer: ttsBuffer, streamBuffer: streamBuffer, idx: this.stream_chunk_idx, label: label })
+                                this.stream_chunk_idx++
+                                isFirstTtsChunk = false
+                            }
+                            ttsBuffer = ""; // バッファをクリア
+                        }
                     }
                 }
             }
 
             // 最後のデータを処理
             if (!/^(\s)*$/.test(ttsBuffer) && ttsBuffer != '') {
+                console.log(ttsBuffer)
                 this.ee.emit('cgpth:data', { ttsBuffer: ttsBuffer, streamBuffer: streamBuffer, idx: this.stream_chunk_idx, label: 'end' })
             }
-            if (streamBuffer != '') {
-                const lastUtt = this.current_conversation.pop()
-                if (lastUtt) {
-                    if (lastUtt.role != 'assistant') {
-                        this.current_conversation.push(lastUtt)
-                    }
-                }
-                this.current_conversation.push({ role: "assistant", content: streamBuffer })
-            }
+            generatedTextPusher()
+
+            this.abortController?.abort()
         } catch (e: any) {
             // 中断された場合、重複を回避してassistantの発言を会話履歴に追加する
             if (e.name === 'AbortError') {
-                if (streamBuffer != '') {
-                    const lastUtt = this.current_conversation.pop() || { role: "", content: "" }
-                    if (lastUtt.role != 'assistant') {
-                        this.current_conversation.push(lastUtt)
-                    }
-                    this.current_conversation.push({ role: "assistant", content: streamBuffer })
-                }
+                generatedTextPusher()
             } else {
                 console.error('Stream reading error:', e);
             }
@@ -456,6 +495,21 @@ class ChatGPTHandler {
         }
 
         return false
+    }
+
+    updateCharacterName(args: { "updateNames": Array<{ prior_name: string, modified_name: string }> }) {
+        const updateNames = args.updateNames
+        updateNames.forEach((names, index) => {
+            console.log(`prior: ${names.prior_name}, modify: ${names.modified_name}`)
+            if (this.user_name === names.prior_name && names.modified_name !== '') {
+                // this.user_name = names.modified_name
+                console.log(this.user_name)
+            }
+            if (this.bot_name === names.prior_name && names.modified_name !== '') {
+                this.bot_name = names.modified_name
+            }
+        })
+
     }
 }
 

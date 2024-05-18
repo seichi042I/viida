@@ -1,3 +1,4 @@
+import WebSocketConnection from '@/Components/Atoms/logic/WebSocketConnection';
 import { EventEmitter } from 'eventemitter3';
 
 const exitcode2reason: {
@@ -18,16 +19,19 @@ const exitcode2reason: {
 }
 
 class WebSocketHandler {
-    ws: WebSocket;
+    ws!: WebSocket;
     ee: EventEmitter;
 
     constructor(ee: EventEmitter) {
-        this.ws = new WebSocket('wss://localhost:5000');
+        WebSocketConnection(ee, ['wss://vk3064zn-5000.asse.devtunnels.ms/', 'ws://vk3064zn-5000.asse.devtunnels.ms/', 'wss://localhost:5000']);
         this.ee = ee
 
-        this.ws.onopen = (event) => this.onOpen(event);
-        this.ws.onmessage = (event) => this.onMessage(event);
-        this.ws.onclose = (event) => this.onClose(event);
+        ee.on('wsc:onopen', socket => {
+            this.ws = socket
+            this.ws.onopen = (event) => this.onOpen(event);
+            this.ws.onmessage = (event) => this.onMessage(event);
+            this.ws.onclose = (event) => this.onClose(event);
+        })
     }
 
     onOpen(event: Event) {

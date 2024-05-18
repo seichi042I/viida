@@ -1,27 +1,24 @@
-const WebSocketConnection = (hosts:Array<string>):Promise<WebSocket> => {
-    return new Promise((resolve,reject) => {
+import { EventEmitter } from "eventemitter3"
 
-        const connectNext = () => {
-            if(hosts.length === 0){
-                reject(new Error('All WebSocket connections failed.'))
-                return
-            }
-
-            const url = hosts.shift()!
-            const socket = new WebSocket(url)
-
-            socket.onopen = () => {
-                resolve(socket);
-            };
-        
-            socket.onerror = () => {
-                console.warn(`WebSocket connection failed: ${url}`);
-                connectNext();
-            };
+const WebSocketConnection = (ee: EventEmitter, hosts: Array<string>): void => {
+    const connectNext = () => {
+        if (hosts.length === 0) {
+            return
         }
 
-        connectNext()
-    })
+        const url = hosts.shift()!
+        const socket = new WebSocket(url)
+
+        socket.onopen = () => {
+            ee.emit('wsc:onopen', socket)
+        };
+
+        socket.onerror = () => {
+            console.warn(`WebSocket connection failed: ${url}`);
+            connectNext();
+        };
+    }
+    connectNext()
 }
 
 export default WebSocketConnection
