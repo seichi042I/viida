@@ -5,22 +5,19 @@ export const function_calling_tools: OpenAI.ChatCompletionTool[] = [
         "type": "function",
         "function": {
             "name": "updateCharacterName",
-            "description": `Functions that change common nouns to proper nouns by carefully reading the conversation history.\n\nExample:\ninput:'少女「私の名前はアリス。あなたの名前は？」\n user「俺はセツナ。柏崎セツナだ。よろしく」\n'output: {'少女':'アリス', 'user':'セツナ'}`,
+            "description": `Functions that change common nouns to proper nouns by carefully reading the conversation history.\n\nExample:\ninput:'userの本名もしくはハンドルネームが分かればそれを答えよ。\n\n少女「私の名前はアリス。あなたの名前は？」\n user「俺はセツナ。柏崎セツナだ。よろしく」\n'output: {'prior_name:'user','modified_name':'セツナ'}`,
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "updateNames": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "prior_name": { "type": "string", "description": "Name before update" },
-                                "modified_name": { "type": "string", "discription": "Name after update" }
-                            }
+                    "updateName": {
+                        "type": "object",
+                        "properties": {
+                            "prior_name": { "type": "string", "description": "Name before update" },
+                            "modified_name": { "type": "string", "discription": "Name after update" }
                         }
                     },
                 },
-                "required": ["updateNames"],
+                "required": ["updateName"],
             },
         }
     },
