@@ -1,4 +1,4 @@
-import WebSocketConnection from '@/Components/Atoms/logic/WebSocketConnection';
+import WebSocketConnection from './WebSocketConnection';
 import { EventEmitter } from 'eventemitter3';
 
 const exitcode2reason: {
@@ -23,7 +23,7 @@ class WebSocketHandler {
     ee: EventEmitter;
 
     constructor(ee: EventEmitter) {
-        WebSocketConnection(ee, ['wss://vk3064zn-5000.asse.devtunnels.ms/', 'ws://vk3064zn-5000.asse.devtunnels.ms/', 'wss://localhost:5000']);
+        WebSocketConnection(ee, ['wss://vk3064zn-5000.asse.devtunnels.ms/', 'ws://vk3064zn-5000.asse.devtunnels.ms/', 'ws://localhost:5000']);
         this.ee = ee
 
         ee.on('wsc:onopen', socket => {
@@ -63,14 +63,18 @@ class WebSocketHandler {
     }
 
     sendMessage(type: string, data: any) {
-        const message = {
-            "type": type,
-            "data": data
-        }
-        if (this.ws.readyState === 1) {
-            this.ws.send(JSON.stringify(message))
+        if (this.ws) {
+            const message = {
+                "type": type,
+                "data": data
+            }
+            if (this.ws.readyState === 1) {
+                this.ws.send(JSON.stringify(message))
+            } else {
+                console.log("websocket alrady closed.")
+            }
         } else {
-            console.log("websocket alrady closed.")
+            console.log('websocket unavailable')
         }
     }
 
