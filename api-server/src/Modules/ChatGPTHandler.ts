@@ -1,24 +1,37 @@
 import EventEmitter from "eventemitter3";
+// OpenAI
+import OpenAI from "openai"
+import { ChatCompletionStream } from "openai/lib/ChatCompletionStream";
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,// ファイルから読み込み
+});
+import { function_calling_tools } from './utils.mts'
+import { ChatCompletionCreateParamsNonStreaming } from "openai/resources";
+import CharacterSheets from "./CharacterSheet";
+
+const MODEL_NAME = "gpt-4o-2024-05-13"
+const PREPROMPT = "narration:少女は目を覚ました。少女には名前がまだない。年齢、性格、背格好なども一切不明である。しかし、普通に人と話すことはできる。少女はこれまで自分がどのように過ごしてきたのかという記憶がない。だが不安はない。それらはこれから作っていけばよいのだと前向きに考えたからだ。少女は人影を視界の端にとらえた。相手が誰かわからないが、少女はとりあえず話しかけてみる。それは、今はまだ空っぽの自分に何かを与えてくれる最初のチャンスだと考えたからだ。"
+
 type FunctionDictionary = {
     [key: string]: (...args: any[]) => any;
 };
-const MODEL_NAME = "gpt-4o-2024-05-13"
-const PREPROMPT = "narration:少女は目を覚ました。少女には名前がまだない。年齢、性格、背格好なども一切不明である。しかし、普通に人と話すことはできる。少女はこれまで自分がどのように過ごしてきたのかという記憶がない。だが不安はない。それらはこれから作っていけばよいのだと前向きに考えたからだ。少女は人の気配を感じた。相手が誰かわからないが、少女はとりあえず話しかけてみる。それは、今はまだ空っぽの自分に何かを与えてくれる最初のチャンスだと考えたからだ。"
 
-abstract class LLMHandlerAbs {
+
+
+class ChatGPTHandler {
     model_name: string
     preprompt: string
-    previously_on_conversation: string
+    previously_episode: string
     current_conversation: Array<{ "role": string, "content": string }>
     ee: EventEmitter
     abortController?: AbortController
     prev_request_time: number
     stream_chunk_idx: number
-    user_name: string
-    bot_name: string
+    character_sheets: CharacterSheets
     system_content_prefix: Array<string>
     revision_grace_period: number
-    completion?: AsyncIterableIterator<any>
+    completion?: ChatCompletionStream
+    tools_dict: FunctionDictionary
 
     constructor(
         ee: EventEmitter,
@@ -27,13 +40,15 @@ abstract class LLMHandlerAbs {
     ) {
         this.model_name = model_name
         this.preprompt = preprompt
-        this.previously_on_conversation = ""
+        this.previously_episode = ""
         this.current_conversation = []
         this.ee = ee
         this.abortController = undefined
         this.prev_request_time = Date.now()
         this.stream_chunk_idx = 0
+        this.character_sheets = new CharacterSheets({ user: { initial_label: "user" }, bot: { initial_label: "少女" } })
         this.system_content_prefix = ['narration:']
+        this.tools_dict = { "updateCharacterName": (args) => this.updateCharacterName(args) }
 
 
         // 言い直しと見なす猶予時間
@@ -84,7 +99,7 @@ abstract class LLMHandlerAbs {
 
 
             this.current_conversation.pop()
-            content = `${this.user_name}「${user_prompt}」`
+            content = `${this.character_sheets['user'].display_name}「${user_prompt}」`
         }
 
         // 時刻の分が変わっていたら新しく時刻情報を挿入
@@ -116,13 +131,38 @@ abstract class LLMHandlerAbs {
         }
     }
 
-    abstract sendMessage(): void
+    // ChatGPTにリクエストを送信
+    async sendMessage() {
+
+        //GPTにリクエスト送信
+        this.abortController = new AbortController();
+        const messages: OpenAI.ChatCompletionMessageParam[] = [
+            { role: 'system', content: `あなたは優秀なライトノベル作家です。あなたは今からは、${this.character_sheets['user'].display_name}の発言内容を物語のキャラクターのセリフとして考え、話がつながるように物語を展開して書いていきます。セリフを書くときは'${this.character_sheets['bot'].display_name}「（発言内容）」'のように、必ず発言者の名前を鍵括弧の前に書きます。『${this.character_sheets['user'].display_name}』の発言内容はあなた以外の人が考えるので、あなたは『${this.character_sheets['bot'].display_name}』の発言とストーリーのみ考えて書いてください。` }, // 全体的、絶対的な支持
+            { role: 'user', content: this.messageFormatter() }
+        ]
+        console.log(messages)
+        try {
+            this.completion = openai.beta.chat.completions.stream(
+                {
+                    model: this.model_name,
+                    messages: messages,
+                    stream: true
+                },
+                { signal: this.abortController.signal }
+            );
+
+            // データチャンクストリームを処理
+            await this.streamProcesser(this.completion)
+        } catch (e) {
+            console.log(e)
+        }
+    }
 
     messageFormatter() {
         const formated_now_conv = this.convFormatter()
 
-        const formatedMessage = `${this.preprompt}\n\n${this.previously_on_conversation}\n${formated_now_conv}`
-        return formatedMessage
+        const formatedMessage = `${this.previously_episode}${formated_now_conv}`
+        return formatedMessage.replace('{{user_name}}', this.character_sheets['user'].display_name)
     }
 
     convFormatter() {
@@ -157,7 +197,7 @@ abstract class LLMHandlerAbs {
 
                 // ユーザの発言を挿入
                 if (role == "user") {
-                    conv_log += `${this.user_name}「${content}」\n`
+                    conv_log += `${this.character_sheets['user'].display_name}「${content}」\n`
                 }
 
                 //botの発言を挿入
@@ -174,7 +214,35 @@ abstract class LLMHandlerAbs {
         }
     }
 
-    generatedTextPusher(streamBuffer: string) {
+
+    async function_calling(messages: any, force_call_tool_name?: string) {
+        console.log(`\n\nat function_calling method: messages:${JSON.stringify(messages)}\n\n`)
+        let options: ChatCompletionCreateParamsNonStreaming = {
+            model: MODEL_NAME,
+            messages: messages,
+            tools: function_calling_tools,
+            tool_choice: "auto",
+        }
+        if (force_call_tool_name) {
+            options.tool_choice = { "type": "function", "function": { "name": force_call_tool_name } }
+        }
+
+        const response = await openai.chat.completions.create(options);
+        console.log(`at function_calling method: response: ${JSON.stringify(response)}`)
+        const tool_calls = response.choices[0].message.tool_calls
+        if (tool_calls) {
+            const func = tool_calls[0].function
+            const args = JSON.parse(func.arguments)
+            console.log(func.name)
+            console.log(args)
+            this.ee.emit('cgpth:function_calling', { function_name: func.name, arguments: args })//イベント発火
+            this.tools_dict[func.name](args)//関数実行
+        }
+
+    }
+
+
+    generatedTextPusher = (streamBuffer: string) => {
         console.log(streamBuffer)
         if (streamBuffer != '') {
             const lastUtt = this.current_conversation.slice(-1)[0]
@@ -189,13 +257,13 @@ abstract class LLMHandlerAbs {
             console.log(JSON.stringify(this.current_conversation))
 
             // セリフとその他に分割して保存
-            const bot_name_split = streamBuffer.split(`${this.bot_name}「`)
+            const bot_name_split = streamBuffer.split(`${this.character_sheets['bot'].display_name}「`)
             if (bot_name_split.length > 1) {
                 bot_name_split.forEach((element, index) => {
                     const bracket_split = element.split('」')
                     if (bracket_split.length > 1) {
                         console.log("セリフ:", element);
-                        this.current_conversation.push({ role: "assistant", content: `${this.bot_name}「${bracket_split[0].replace('\n', '')}」` })
+                        this.current_conversation.push({ role: "assistant", content: `${this.character_sheets['bot'].display_name}「${bracket_split[0].replace('\n', '')}」` })
                         if (bracket_split[1] !== '') {
                             this.current_conversation.push({ role: "system", content: bracket_split[1].replace('\n', '') })
                         }
@@ -215,12 +283,16 @@ abstract class LLMHandlerAbs {
         }
     }
 
-    async streamProcesser(completion: AsyncIterableIterator<any>, getChunkText: (chunk: any) => string) {
+    async streamProcesser(completion?: ChatCompletionStream) {
         if (completion === undefined) return
         let ttsBuffer = ""
         let streamBuffer = ""
         let isFirstTtsChunk = true
 
+        // 正規表現を用いて句読点などを
+        const punctuationRegex = /([\/#!$%\^&\*;:{}=\-_`~()？！、。」])/;
+        const usernameRegex = new RegExp(`${this.character_sheets['user'].display_name}「`);
+        const botnameRegex = new RegExp(`${this.character_sheets['bot'].display_name}「`);
 
         // ストリーミング処理
         try {
@@ -229,7 +301,7 @@ abstract class LLMHandlerAbs {
                 if (chunk == undefined) { continue }
 
                 const chunkToolCalls = chunk.choices[0].delta.tool_calls
-                const chunkText = getChunkText(chunk)
+                const chunkText = chunk.choices[0].delta.content
                 // function callingの処理
                 if (chunkToolCalls) {
                     console.log(JSON.stringify(chunkToolCalls))
@@ -239,14 +311,10 @@ abstract class LLMHandlerAbs {
                         // バッファに文字を追加
                         streamBuffer += chunkText;
                         ttsBuffer += chunkText;
-                        if (chunkText.includes('\n') && streamBuffer.includes('」\n')) {
+                        if (chunkText.includes('\n') && streamBuffer.includes('」\n') || streamBuffer.includes('\n\n')) {
                             break;
                         }
 
-                        // 正規表現を用いて句読点を見つける
-                        const punctuationRegex = /([\/#!$%\^&\*;:{}=\-_`~()？！、。」])/;
-                        const usernameRegex = new RegExp(`${this.user_name}「`);
-                        const botnameRegex = new RegExp(`${this.bot_name}「`);
 
                         // matchを使って句読点を含むマッチオブジェクトを取得する
                         const puncMatch = chunkText.match(punctuationRegex);
@@ -287,10 +355,25 @@ abstract class LLMHandlerAbs {
 
             // 最後のデータを処理
             if (!/^(\s)*$/.test(ttsBuffer) && ttsBuffer != '') {
-                console.log(ttsBuffer)
+                const userNameMatch = ttsBuffer.match(usernameRegex);
+                if (userNameMatch) {
+                    ttsBuffer = ''
+                }
                 this.ee.emit('cgpth:data', { ttsBuffer: ttsBuffer, streamBuffer: streamBuffer, idx: this.stream_chunk_idx, label: 'end' })
             }
             this.generatedTextPusher(streamBuffer)
+
+            //本名もしくはニックネームが定まっていないキャラクターについて、発言内容から推測
+            for (const noname_key of this.character_sheets.nonames()) {
+                const character = this.character_sheets[noname_key].display_name
+                this.function_calling(
+                    [
+                        { role: 'system', content: `以下に示す会話内容をよく読んで、『${character}』の名前が分かればそれを答えよ。会話内容にその情報がない場合や、『${character}』の名前を指していない場合はnullと答えよ。文脈をよく読み、安易に答えないこと。\n\n${this.messageFormatter()}` }
+                    ],
+                    "updateCharacterName"
+                )
+
+            }
 
             this.abortController?.abort()
         } catch (e: any) {
@@ -329,12 +412,12 @@ abstract class LLMHandlerAbs {
 
     resetConversation() {
         this.current_conversation = []
-        this.previously_on_conversation = ""
+        this.previously_episode = ""
     }
 
     getNUserUtterance(n: number, { with_system_prompt = false } = {}) {
         // ユーザの発言をn個取得
-        let user_utt_buff: Array<{ role: string, content: string }> = []
+        let user_utt_buff = []
         let count = -1
         try {
             while (user_utt_buff.length <= n) {
@@ -358,20 +441,75 @@ abstract class LLMHandlerAbs {
         return []
     }
 
+    async remindable() {
+        const n_user_utt = this.getNUserUtterance(3)
+        let n_user_utt_content: Array<string> = []
+        for (const utt of n_user_utt) {
+            n_user_utt_content.push(utt.content)
+        }
+
+        const taskString = `以下は${this.character_sheets['user'].display_name}の直近の発言である。これらの発言内容から、${this.character_sheets['user'].display_name}のためにリマインドを設定すべき状況か答えなさい。設定すべきなら「y」、すべきでないなら「n」と答えなさい\n${n_user_utt_content.join("\n")}`
+        console.log(taskString)
+        return this.YesNoTask(taskString)
+    }
+    async userNameExtract() {
+        const last_user_utt = this.getNUserUtterance(1)[0]
+        const taskString = `次に示す発言から{name: value}のJSON形式で発言者の名前を抽出せよ。”あの人は〜”や”〜ってばなんなのよ”など、発言者自身の名前でない場合はnullにせよ。答えのみ書け
+        
+        ${last_user_utt}
+        `
+        const message: OpenAI.ChatCompletionMessageParam[] = [{ role: "system", content: taskString }]
+        try {
+            const completion = await openai.chat.completions.create(
+                {
+                    model: 'gpt-4-0125-preview',
+                    messages: message,
+                    temperature: 0
+                },
+            );
+            const response_message = completion.choices[0].message
+            const response_content = response_message.content
+            return response_content
+        } catch (e) {
+            console.log(e)
+        }
+        return
+    }
+
+    async YesNoTask(taskString: string) {
+        const message: OpenAI.ChatCompletionMessageParam[] = [{ role: "system", content: taskString }]
+        try {
+            const completion = await openai.chat.completions.create(
+                {
+                    model: 'gpt-3.5-turbo-1106',
+                    messages: message,
+                    temperature: 0
+                },
+            );
+            const response_message = await completion.choices[0].message
+            const response_content = response_message.content
+            const result = response_content == 'y' ? true : false
+            return result
+        } catch (e) {
+            console.log(e)
+        }
+
+        return false
+    }
 
     updateCharacterName(args: { "updateName": { prior_name: string, modified_name: string } }) {
         const prior_name = args.updateName.prior_name
         const modified_name = args.updateName.modified_name
         console.log(`prior: ${prior_name}, modify: ${modified_name}`)
-        if (this.user_name === prior_name && modified_name !== '') {
-            // this.user_name = names.modified_name
-            console.log(this.user_name)
+        if (this.character_sheets['user'].display_name === prior_name && modified_name !== 'null') {
+            this.character_sheets.setName('user', modified_name)
+            console.log(this.character_sheets['user'].display_name)
         }
-        if (this.bot_name === prior_name && modified_name !== '') {
-            // this.bot_name = names.modified_name
+        if (this.character_sheets['bot'].display_name === prior_name && modified_name !== 'null') {
+            this.character_sheets.setName('bot', modified_name)
+            console.log(this.character_sheets['bot'].display_name)
         }
-
     }
 }
 
-export default LLMHandlerAbs
+export default ChatGPTHandler

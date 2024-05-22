@@ -2,8 +2,9 @@ import http from 'http';
 import https from 'https';
 import { WebSocketServer } from 'ws';
 import fs from 'fs';
-import ChatGPTHandler from './Modules/ChatGPTHandler.mts';
+import ChatGPTHandler from './Modules/ChatGPTHandler';
 import EventEmitter from 'eventemitter3';
+import KoboldCppHandler from './Modules/KoboldCppHandler';
 
 // HTTPSサーバのオプション
 // const httpsOptions: https.ServerOptions = {
@@ -34,19 +35,29 @@ const setupWebSocketServer = (server: any) => {
     console.log('WebSocket connected');
     const ee = new EventEmitter();
     const cgpth = new ChatGPTHandler(ee);
-    ws.send(JSON.stringify({ ttsBuffer: `${cgpth.preprompt.replace('narration:', '')}\n\n` }));
-    cgpth.sendMessage();
+    const kbh = new KoboldCppHandler(ee, `http://${process.env.WSL2_IP}:5001`)
+    // cgpth.sendMessage();
+    ws.send(JSON.stringify({ diff: `${kbh.messageFormatter()}` }));
+    kbh.sendMessage();
 
     ws.on('message', (message: string) => {
       const data = JSON.parse(message);
       if (data['type'] === "user_prompt") {
         if (data['data'] !== '') {
-          cgpth.insertUserPrompt(data['data']);
+          // cgpth.insertUserPrompt(data['data']);
+          kbh.insertUserPrompt(data['data'])
+          ws.send(JSON.stringify({ diff: `${kbh.character_sheets['user'].display_name}「${data['data']}」\n` }))
         } else {
-          cgpth.insertSystemPrompt("narration:");
+          // if (Math.random() < 0.5) {
+          //   kbh.insertSystemPrompt(`${kbh.character_sheets['user'].display_name}`);
+          //   ws.send(JSON.stringify({ diff: `${kbh.character_sheets['user'].display_name}` }))
+          // } else {
+          // }
+          kbh.insertSystemPrompt("\n\n");
         }
       }
-      cgpth.sendMessage();
+      // cgpth.sendMessage();
+      kbh.sendMessage();
     });
 
     ws.on('close', () => {
@@ -54,6 +65,7 @@ const setupWebSocketServer = (server: any) => {
     });
 
     ee.on('cgpth:data', (event) => { ws.send(JSON.stringify(event)) });
+    ee.on('llmh:data', (event) => { ws.send(JSON.stringify(event)) });
   });
 };
 

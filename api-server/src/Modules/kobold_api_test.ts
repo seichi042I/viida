@@ -1,22 +1,48 @@
 import http, { RequestOptions, IncomingMessage } from 'http';
 
-interface Message {
-    role: string;
-    content: string;
+interface GenerationInput {
+    prompt: string
+    max_context_length?: number
+    max_length?: number
+    rep_pen?: number
+    rep_pen_range?: number
+    sampler_order?: number
+    sampler_seed?: number
+    stop_sequence?: string
+    temperature?: number
+    tfs?: number
+    top_a?: number
+    top_k?: number
+    top_p?: number
+    min_p?: number
+    typical?: number
+    use_default_badwordsids?: boolean
+    dynatemp_range?: number
+    smoothing_factor?: number
+    mirostat?: number
+    mirostat_tau?: number
+    mirostat_eta?: number
+    genkey?: string
+    grammar?: string
+    grammar_retain_state?: boolean
+    memory?: string
+    images?: string
+    trim_stop?: string
 }
 
-interface PostData {
-    messages: Message[];
+interface KoboldCppPostData {
+    model_name: string;
+    request_body: GenerationInput[];
     stream: boolean;
 }
 
-class StreamIterator implements AsyncIterableIterator<string> {
+class KoboldAPIStreamIterator implements AsyncIterableIterator<string> {
     private req: http.ClientRequest;
     private res: IncomingMessage | null = null;
     private chunks: string[] = [];
     private resolveChunk: ((value: IteratorResult<string, any>) => void) | null = null;
 
-    constructor(options: RequestOptions, postData: PostData) {
+    constructor(options: RequestOptions, postData: KoboldCppPostData | any) {
         this.req = http.request(options, (res) => {
             this.res = res;
             res.setEncoding('utf8');
@@ -67,7 +93,7 @@ class StreamIterator implements AsyncIterableIterator<string> {
         });
     }
 
-    async forEach(callback: (element: string, index: number) => void): Promise<void> {
+    async forEach(callback: (element: string, index?: number) => void): Promise<void> {
         let index = 0;
         for await (const chunk of this) {
             callback(chunk, index++);
@@ -75,7 +101,7 @@ class StreamIterator implements AsyncIterableIterator<string> {
     }
 }
 
-const postData: PostData = {
+const postData = {
     messages: [
         {
             role: "system",
@@ -83,7 +109,7 @@ const postData: PostData = {
         },
         {
             role: "user",
-            content: "小説家になろうというサイトに、オリジナルのライトノベルを書いて登校しようと思う。小説の冒頭を書いてください。"
+            content: "小説家になろうというサイトに、オリジナルのライトノベルを書いて投稿しようと思う。小説の冒頭を書いてください。"
         }
     ],
     stream: true
@@ -101,7 +127,7 @@ const options: RequestOptions = {
 };
 
 async function main() {
-    const streamIterator = new StreamIterator(options, postData);
+    const streamIterator = new KoboldAPIStreamIterator(options, postData);
 
     for await (const chunk of streamIterator) {
         console.log(chunk)
@@ -111,5 +137,5 @@ async function main() {
 
 main().catch(console.error);
 
-export { StreamIterator }; export type { PostData, RequestOptions };
+export { KoboldAPIStreamIterator as StreamIterator }; export type { KoboldCppPostData as PostData, RequestOptions };
 

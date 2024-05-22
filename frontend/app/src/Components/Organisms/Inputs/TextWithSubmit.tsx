@@ -16,7 +16,7 @@ interface ContainerProps {
 interface TextWithSubmitProps extends ContainerProps {
   className?: string
   textInputRef?: MutableRefObject<HTMLInputElement | null>;
-  onClick?: () => void
+  onSubmit?: () => void
   iconButtonProps?: IconButtonProps;
 }
 
@@ -40,6 +40,8 @@ const Container = styled.div<ContainerProps>`
     }
   }};
 
+    border-radius: 9999px;
+
     display: flex;
     align-items: center;
     justify-content: center;
@@ -51,17 +53,29 @@ const Container = styled.div<ContainerProps>`
 interface TextInputProps {
   width?: string;
   height?: string;
+  fontSize?: string;
 }
 const TextInput = styled.input<TextInputProps>`
-  width: 9999px;
-  height: 90%;
-  border-radius: 9999px;
+  background: transparent;
+  color: white;
+  width: ${({ width }) => width ? width : '100%'};
+  height: ${({ height }) => height ? height : '100%'};
+  margin-left: 1em;
+  margin-right: 1em;
+  padding: 0px;
+  border-width: 0px;
+
+  font-size: ${({ fontSize }) => fontSize ? fontSize : '1em'};
 `
 
-export default ({ className = "", iconButtonProps = { iconName: "arrow_up" }, textInputRef = undefined, onClick = () => { }, width = "256px", height = "32px", ...props }: TextWithSubmitProps) => {
+export default ({ className = "", iconButtonProps = { iconName: "arrow_up" }, textInputRef = useRef<HTMLInputElement>(null), onSubmit: onSubmit = () => { }, width = "256px", height = "32px", ...props }: TextWithSubmitProps) => {
   const divRef = useRef<HTMLDivElement>(null);
   const [containerHeight, setContainerHeight] = useState(0);
-
+  const onKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === 'Enter') {
+      onSubmit()
+    }
+  }
   useEffect(() => {
     // コンポーネントがマウントされた後に要素の高さを取得
     if (divRef.current) {
@@ -69,10 +83,15 @@ export default ({ className = "", iconButtonProps = { iconName: "arrow_up" }, te
       console.log(divRef.current.offsetHeight)
     }
   }, []);
+
+
   return (
-    <Container ref={divRef} className={className} width={width} height={height} {...props}>
-      <TextInput className="text-base sm:text-lg md:text-xl lg:text-2xl" ref={textInputRef} type="text" />
-      <IconButton onClick={onClick} buttonProps={{ "width": "100%", "height": containerHeight + "px" }} {...iconButtonProps} />
+    <Container ref={divRef} width={width} height={height} {...props}>
+      <TextInput onKeyDownCapture={onKeyDown} placeholder="Enter your text" ref={textInputRef} type="text" />
+      <IconButton
+        onClick={onSubmit}
+        buttonProps={{ "width": containerHeight + "px", "height": containerHeight + "px" }}
+        {...iconButtonProps} />
     </Container>
   )
 }

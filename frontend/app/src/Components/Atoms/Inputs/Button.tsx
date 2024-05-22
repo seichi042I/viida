@@ -22,6 +22,7 @@ export interface ButtonProps {
 
   //レイアウト
   padding?: string;
+  margine?: string
 
   //その他
   label?: string;
@@ -57,7 +58,9 @@ const Button = styled.button<ButtonProps>`
   display: ${({ display }) => display ? display : 'inline'}; 
   justify-content: center; 
   align-items: center; 
-  padding: ${({ padding }) => padding ? padding : '0.4em'};
+  margine: ${({ margine }) => margine ? margine : '0.4em'};
+  padding: 0px;
+  flex-shrink: 0;
 `
 
 
@@ -67,11 +70,9 @@ export default ({
   ...props
 }: ButtonProps) => {
   return (
-    <div>
-      <Button type="button" {...props}>
-        {label}
-        {children}
-      </Button>
-    </div>
+    <Button type="button" {...props}>
+      {label}
+      {children}
+    </Button>
   );
 };

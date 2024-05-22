@@ -40,7 +40,7 @@ const IncrementalTextDisplay = memo<IncrementalTextDisplayProps>(({ contentRef =
     }, [])
 
     return (
-        <div className='text-xl' style={{ display: "inline", color: props.textColor }} ref={elementRef}>
+        <div className='text-xl' style={{ width: "90%", textAlign: "left", color: props.textColor }} ref={elementRef}>
             <OrnamentalCursor />
         </div>
     )
