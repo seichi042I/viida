@@ -3,6 +3,10 @@ import LLMHandler from "./LLMHandler";
 import { StreamProcessData } from "./LLMHandler";
 import http, { RequestOptions, IncomingMessage, IncomingHttpHeaders } from 'http';
 import https from 'https';
+import { v4 as uuidv4 } from 'uuid';
+
+// UUID v4を生成
+const uuid4 = uuidv4();
 
 interface GenerationInputOptions {
     max_context_length?: number
@@ -162,10 +166,12 @@ class KoboldCppApi {
         });
     }
 
-    generate(prompt: string, { ...options }: GenerationInputOptions = {}): Promise<SimpleResponse> {
+    generate(prompt: string, { ...options }: GenerationInputOptions = {}): { genkey: string; completion: Promise<SimpleResponse> } {
         const reqOps = this.getRequestOptions('/api/v1/generate', 'POST')
+        const genkey = uuid4
         const data = {
             prompt: prompt,
+            genkey: genkey,
             ...options
         }
         const postData = JSON.stringify(data)
@@ -174,13 +180,15 @@ class KoboldCppApi {
             'Content-Type': 'application/json',
             'Content-Length': Buffer.byteLength(postData)
         }
-        return this.sendRequest(reqOps, postData)
+        return { genkey: uuid4, completion: this.sendRequest(reqOps, postData) }
     }
 
-    stream(prompt: string, { ...options }: GenerationInputOptions = {}): APIStreamIterator {
+    stream(prompt: string, { ...options }: GenerationInputOptions = {}): { genkey: string; completion: APIStreamIterator } {
         const reqOps = this.getRequestOptions('/api/extra/generate/stream', 'POST')
+        const genkey = uuid4
         const data = {
             prompt: prompt,
+            genkey: genkey,
             ...options
         }
         const postData = JSON.stringify(data)
@@ -189,7 +197,22 @@ class KoboldCppApi {
             'Content-Type': 'application/json',
             'Content-Length': Buffer.byteLength(postData)
         }
-        return new APIStreamIterator(this.protocol, reqOps, postData);
+        return { genkey: genkey, completion: new APIStreamIterator(this.protocol, reqOps, postData) };
+    }
+
+    abort(genkey: string) {
+        const reqOps = this.getRequestOptions('/api/extra/abort', 'POST')
+        const data = {
+            genkey: genkey
+        }
+        const postData = JSON.stringify(data)
+
+        reqOps.headers = {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(postData)
+        }
+
+        return this.sendRequest(reqOps, postData)
     }
 }
 
@@ -200,6 +223,7 @@ class KoboldCppHandler extends LLMHandler {
     api: KoboldCppApi
     api_options: GenerationInputOptions
     completion?: APIStreamIterator
+    genkey?: string
 
     constructor(ee: EventEmitter, url: string = 'http://localhost:5001') {
         super(ee);
@@ -217,7 +241,15 @@ class KoboldCppHandler extends LLMHandler {
     async sendMessage() {
         try {
             console.log(this.messageFormatter())
-            this.completion = this.api.stream(this.messageFormatter(), { ...this.api_options });
+            const { genkey, completion } = this.api.stream(this.messageFormatter(), { ...this.api_options });
+            this.genkey = genkey
+            this.completion = completion
+            this.abortController = {
+                abort: () => {
+                    console.log('\n\nabort call.\n\n')
+                    this.api.abort(genkey)
+                }
+            }
 
             // データチャンクストリームを処理
             await this.streamProcesser(this.completion)

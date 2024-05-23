@@ -23,7 +23,7 @@ abstract class LLMHandler {
     previously_episode: string
     current_conversation: Array<{ "role": string, "content": string }>
     ee: EventEmitter
-    abortController?: AbortController
+    abortController?: AbortController | any
     prev_request_time: number
     stream_chunk_idx: number
     character_sheets: CharacterSheets
