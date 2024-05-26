@@ -285,6 +285,7 @@ class ChatGPTHandler {
 
     async streamProcesser(completion?: ChatCompletionStream) {
         if (completion === undefined) return
+        let diff = ""
         let ttsBuffer = ""
         let streamBuffer = ""
         let isFirstTtsChunk = true
@@ -311,7 +312,13 @@ class ChatGPTHandler {
                         // バッファに文字を追加
                         streamBuffer += chunkText;
                         ttsBuffer += chunkText;
-                        if (chunkText.includes('\n') && streamBuffer.includes('」\n') || streamBuffer.includes('\n\n')) {
+                        diff += chunkText;
+                        if (streamBuffer.includes('」\n') || streamBuffer.includes('\n\n') || streamBuffer.includes('\n「')) {
+                            streamBuffer = streamBuffer.split('\n')[0]
+                            ttsBuffer = ttsBuffer.split('\n')[0]
+                            diff = diff.split('\n')[0]
+
+                            console.log(`bracket detected. tts: ${ttsBuffer}, stream: ${streamBuffer}, diff: ${diff}`)
                             break;
                         }
 
@@ -324,7 +331,7 @@ class ChatGPTHandler {
 
                         // ユーザ名を検知
                         if (userNameMatch) {
-                            this.ee.emit('cgpth:data', { ttsBuffer: '', streamBuffer: streamBuffer, idx: this.stream_chunk_idx, label: 'end' })
+                            this.ee.emit('llmh:data', { ttsBuffer: '', streamBuffer: streamBuffer, duff: '', idx: this.stream_chunk_idx, label: 'end' })
                             break;
                         }
 
@@ -343,7 +350,7 @@ class ChatGPTHandler {
                                     ttsBuffer = ttsBuffer.replace(element, '')
                                 })
                                 console.log(ttsBuffer)
-                                this.ee.emit('cgpth:data', { ttsBuffer: ttsBuffer, streamBuffer: streamBuffer, idx: this.stream_chunk_idx, label: label })
+                                this.ee.emit('llmh:data', { ttsBuffer: ttsBuffer, streamBuffer: streamBuffer, diff: ttsBuffer, idx: this.stream_chunk_idx, label: label })
                                 this.stream_chunk_idx++
                                 isFirstTtsChunk = false
                             }
@@ -359,7 +366,7 @@ class ChatGPTHandler {
                 if (userNameMatch) {
                     ttsBuffer = ''
                 }
-                this.ee.emit('cgpth:data', { ttsBuffer: ttsBuffer, streamBuffer: streamBuffer, idx: this.stream_chunk_idx, label: 'end' })
+                this.ee.emit('llmh:data', { ttsBuffer: ttsBuffer, streamBuffer: streamBuffer, diff: ttsBuffer, idx: this.stream_chunk_idx, label: 'end' })
             }
             this.generatedTextPusher(streamBuffer)
 

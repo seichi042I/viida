@@ -231,10 +231,10 @@ class KoboldCppHandler extends LLMHandler {
         this.api_options = {
             max_length: 256
         }
-        this.preprompt = `それは『user』と呼ばれている謎の人物と、記憶のない少女の出会いから始まった。`
+        this.preprompt = `少女は目を覚ました。少女には名前がまだない。年齢、性格、背格好なども一切不明である。しかし、普通に人と話すことはできる。少女はこれまで自分がどのように過ごしてきたのかという記憶がない。だが不安はない。それらはこれから作っていけばよいのだと前向きに考えたからだ。少女は人の気配を感じた。相手が誰かわからないが、少女はとりあえず話しかけてみる。それは、今はまだ空っぽの自分に何かを与えてくれる最初のチャンスだと考えたからだ。`
         this.current_conversation = [
-            { role: 'user', content: `はじめまして。` },
-            { role: 'assistant', content: `少女「...」` }
+            { role: 'assistant', content: `少女「...誰かいるのですか？」` }
+            // { role: 'user', content: `はじめまして。` },
         ]
     }
     // リクエストを送信

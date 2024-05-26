@@ -5,6 +5,7 @@ import fs from 'fs';
 import ChatGPTHandler from './Modules/ChatGPTHandler';
 import EventEmitter from 'eventemitter3';
 import KoboldCppHandler from './Modules/KoboldCppHandler';
+import SBV2Api from './Modules/sbv2_api_test';
 
 // HTTPSサーバのオプション
 // const httpsOptions: https.ServerOptions = {
@@ -36,16 +37,18 @@ const setupWebSocketServer = (server: any) => {
     const ee = new EventEmitter();
     const cgpth = new ChatGPTHandler(ee);
     const kbh = new KoboldCppHandler(ee, `http://${process.env.WSL2_IP}:5001`)
-    // cgpth.sendMessage();
-    ws.send(JSON.stringify({ diff: `${kbh.messageFormatter()}` }));
-    kbh.sendMessage();
+    const sbv2 = new SBV2Api('http://sbv2:5000')
+    // sbv2.generate("テスト")
+    cgpth.sendMessage();
+    // ws.send(JSON.stringify({ diff: `${kbh.messageFormatter()}` }));
+    // kbh.sendMessage();
 
     ws.on('message', (message: string) => {
       const data = JSON.parse(message);
       if (data['type'] === "user_prompt") {
         if (data['data'] !== '') {
-          // cgpth.insertUserPrompt(data['data']);
-          kbh.insertUserPrompt(data['data'])
+          cgpth.insertUserPrompt(data['data']);
+          // kbh.insertUserPrompt(data['data'])//ユーザ入力を追加
           ws.send(JSON.stringify({ diff: `${kbh.character_sheets['user'].display_name}「${data['data']}」\n` }))
         } else {
           // if (Math.random() < 0.5) {
@@ -53,11 +56,11 @@ const setupWebSocketServer = (server: any) => {
           //   ws.send(JSON.stringify({ diff: `${kbh.character_sheets['user'].display_name}` }))
           // } else {
           // }
-          kbh.insertSystemPrompt("\n\n");
+          // kbh.insertSystemPrompt("\n\n");
         }
       }
-      // cgpth.sendMessage();
-      kbh.sendMessage();
+      cgpth.sendMessage();
+      // kbh.sendMessage();
     });
 
     ws.on('close', () => {

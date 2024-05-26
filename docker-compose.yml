@@ -26,21 +26,26 @@ services:
     ports:
       - "5000:5000"
 
-  # voicevox_server:
-  #   # 例としての音声合成サーバ
-  #   image: voicevox/voicevox_engine:nvidia-latest
-  #   container_name: voicevox
-  #   ports:
-  #     - "50021:50021"
-  #   environment:
-  #     - CUDA_VISIBLE_DEVICES=1
-  #   deploy:
-  #     resources:
-  #       reservations:
-  #         devices:
-  #           - driver: nvidia
-  #             count: 2
-  #             capabilities: [ "gpu" ]
+  sbv2-server:
+    # 例としての音声合成サーバ
+    build:
+      context: ./SBV2
+      dockerfile: Dockerfile
+    container_name: sbv2
+    volumes:
+      - ./SBV2/model_assets:/home/user/Style-Bert-VITS2/model_assets
+    ports:
+      - "50022:5000"
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 2
+              capabilities: [ "gpu" ]
+    command: python server_fastapi.py
 
   # pyserver:
   #   # RAG用のサーバ
