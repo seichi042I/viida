@@ -2,8 +2,8 @@ import EventEmitter from "eventemitter3";
 import CharacterSheets from "./CharacterSheet"
 import { Stream } from "stream";
 import { StreamPriorityOptions } from "http2";
+import { ChatCompletionStream } from "openai/lib/ChatCompletionStream";
 
-const MODEL_NAME = "gpt-4o-2024-05-13"
 const PREPROMPT = ""
 
 export interface StreamProcessData {
@@ -17,8 +17,13 @@ export interface StreamProcessData {
     option?: any
 }
 
+
+const getRandomInt = (max: number) => {
+    const _max = Math.floor(max)
+    return Math.floor(Math.random() * _max);
+}
+
 abstract class LLMHandler {
-    model_name: string
     preprompt: string
     previously_episode: string
     current_conversation: Array<{ "role": string, "content": string }>
@@ -32,10 +37,8 @@ abstract class LLMHandler {
 
     constructor(
         ee: EventEmitter,
-        model_name = MODEL_NAME,
         preprompt = PREPROMPT,
     ) {
-        this.model_name = model_name
         this.preprompt = preprompt
         this.previously_episode = ""
         this.current_conversation = []
@@ -44,7 +47,7 @@ abstract class LLMHandler {
         this.prev_request_time = Date.now()
         this.stream_chunk_idx = 0
         this.character_sheets = new CharacterSheets({ user: { initial_label: "user" }, bot: { initial_label: "少女" } })
-        this.system_content_prefix = ['narration:']
+        this.system_content_prefix = []
 
         // 言い直しと見なす猶予時間
         this.revision_grace_period = 2000
@@ -153,7 +156,7 @@ abstract class LLMHandler {
                             } else {
                                 continue
                             }
-                        } else if ('narration:' === content) {
+                        } else if (this.system_content_prefix.includes(content)) {
                             conv_log += content
                         } else {
                             conv_log += `${content}\n`
@@ -224,7 +227,7 @@ abstract class LLMHandler {
 
     abstract chunkProcesser(streamProcessData: StreamProcessData): { ttsBuffer: string, streamBuffer: string, diff: string, spk_label: string, isFirstTtsChunk: boolean, breakFlag: boolean }
 
-    async streamProcesser(stream?: AsyncIterableIterator<any>) {
+    async streamProcesser(stream?: AsyncIterableIterator<any> | ChatCompletionStream) {
         if (stream === undefined) return
         let ttsBuffer = ""
         let streamBuffer = ""

@@ -16,17 +16,19 @@ import SBV2Api from './Modules/sbv2_api_test';
 //   ciphers: 'TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384'
 // };
 
+// HTTPSサーバの作成
+// const httpsServer = https.createServer(httpsOptions, (req, res) => {
+//   res.writeHead(200);
+//   res.end('Hello, world! (HTTPS)');
+// });
+
+
 // HTTPサーバの作成
 const httpServer = http.createServer((req, res) => {
   res.writeHead(200);
   res.end('Hello, world! (HTTP)');
 });
 
-// HTTPSサーバの作成
-// const httpsServer = https.createServer(httpsOptions, (req, res) => {
-//   res.writeHead(200);
-//   res.end('Hello, world! (HTTPS)');
-// });
 
 // WebSocketサーバの作成と設定
 const setupWebSocketServer = (server: any) => {
@@ -38,29 +40,18 @@ const setupWebSocketServer = (server: any) => {
     const cgpth = new ChatGPTHandler(ee);
     const kbh = new KoboldCppHandler(ee, `http://${process.env.WSL2_IP}:5001`)
     const sbv2 = new SBV2Api('http://sbv2:5000')
-    // sbv2.generate("テスト")
     cgpth.sendMessage();
-    // ws.send(JSON.stringify({ diff: `${kbh.messageFormatter()}` }));
-    // kbh.sendMessage();
 
     ws.on('message', (message: string) => {
       const data = JSON.parse(message);
       if (data['type'] === "user_prompt") {
         if (data['data'] !== '') {
           cgpth.insertUserPrompt(data['data']);
-          // kbh.insertUserPrompt(data['data'])//ユーザ入力を追加
           ws.send(JSON.stringify({ diff: `${kbh.character_sheets['user'].display_name}「${data['data']}」\n` }))
         } else {
-          // if (Math.random() < 0.5) {
-          //   kbh.insertSystemPrompt(`${kbh.character_sheets['user'].display_name}`);
-          //   ws.send(JSON.stringify({ diff: `${kbh.character_sheets['user'].display_name}` }))
-          // } else {
-          // }
-          // kbh.insertSystemPrompt("\n\n");
         }
       }
       cgpth.sendMessage();
-      // kbh.sendMessage();
     });
 
     ws.on('close', () => {
