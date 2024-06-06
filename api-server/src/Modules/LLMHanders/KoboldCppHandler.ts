@@ -267,7 +267,7 @@ class KoboldCppHandler extends LLMHandler {
         return formatedMessage
     }
 
-    chunkProcesser(streamProcessData: StreamProcessData): { ttsBuffer: string; streamBuffer: string; diff: string; spk_label: string; isFirstTtsChunk: boolean; breakFlag: boolean } {
+    chunkProcesser(streamProcessData: StreamProcessData): { ttsBuffer: string; streamBuffer: string; diff: string; spk_label: string; isFirstTtsChunk: boolean; breakFlag: boolean; regenFlag: boolean } {
         const chunk = streamProcessData.chunk
         let ttsBuffer = streamProcessData.ttsBuffer
         let streamBuffer = streamProcessData.streamBuffer
@@ -275,6 +275,7 @@ class KoboldCppHandler extends LLMHandler {
         let spk_label = streamProcessData.spk_label
         let isFirstTtsChunk = streamProcessData.isFirstTtsChunk
         let breakFlag = false
+        let regenFlag = false
 
         const {
             punctuationRegex,
@@ -298,7 +299,7 @@ class KoboldCppHandler extends LLMHandler {
                 console.log(`bracket detected. tts: ${ttsBuffer}, stream: ${streamBuffer}, diff: ${diff}`)
                 breakFlag = true;
                 // this.ee.emit('llmh:data', { ttsBuffer: ttsBuffer, streamBuffer: streamBuffer, diff: diff, idx: this.stream_chunk_idx, label: 'end' })
-                return { ttsBuffer, streamBuffer, diff, spk_label, isFirstTtsChunk, breakFlag }
+                return { ttsBuffer, streamBuffer, diff, spk_label, isFirstTtsChunk, breakFlag, regenFlag }
             }
 
 
@@ -358,7 +359,7 @@ class KoboldCppHandler extends LLMHandler {
             }
         }
 
-        return { ttsBuffer, streamBuffer, diff, spk_label, isFirstTtsChunk, breakFlag }
+        return { ttsBuffer, streamBuffer, diff, spk_label, isFirstTtsChunk, breakFlag, regenFlag }
 
     }
 

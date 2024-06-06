@@ -1,5 +1,5 @@
 import EventEmitter from "eventemitter3";
-import CharacterSheets from "./CharacterSheet"
+import CharacterSheets from "../CharacterSheet"
 import { Stream } from "stream";
 import { StreamPriorityOptions } from "http2";
 import { ChatCompletionStream } from "openai/lib/ChatCompletionStream";
@@ -46,7 +46,7 @@ abstract class LLMHandler {
         this.abortController = undefined
         this.prev_request_time = Date.now()
         this.stream_chunk_idx = 0
-        this.character_sheets = new CharacterSheets({ user: { initial_label: "user" }, bot: { initial_label: "少女" } })
+        this.character_sheets = new CharacterSheets({ user: { initial_label: "user" }, bot: { initial_label: "bot" } })
         this.system_content_prefix = []
 
         // 言い直しと見なす猶予時間
@@ -66,7 +66,7 @@ abstract class LLMHandler {
         if (user_prompt == '') { return }
 
         // 前のストリームがまだつづいていたら中断
-        if (this.abortController) { this.abortController.abort() }
+        if (this.abortController) { console.log(`\n\nabort call.\n\n`); this.abortController.abort() }
 
         // 現在時刻をフォーマット済みの文字列で取得
         const nowText = this.getDateNowText()
@@ -97,7 +97,7 @@ abstract class LLMHandler {
 
 
             this.current_conversation.pop()
-            content = `${this.character_sheets['user'].display_name}「${user_prompt}」`
+            content = `${user_prompt}`
         }
 
         // 時刻の分が変わっていたら新しく時刻情報を挿入
@@ -114,19 +114,6 @@ abstract class LLMHandler {
         this.current_conversation.push({ role: "user", content: content })
         this.prev_request_time = Date.now()
 
-        // 指定数以上の要素数だった場合は、先頭からrole:userまで削除
-        if (this.current_conversation.length > 30) {
-            while (this.current_conversation.length > 0) {
-                let utterance = this.current_conversation.shift();
-                if (utterance) {
-                    let role = utterance.role;
-                    console.log(role);
-                    if (role === "user") {
-                        break;
-                    }
-                }
-            }
-        }
         this.ee.emit('llmh:insertedUserPrompt', user_prompt)
     }
 
@@ -134,7 +121,13 @@ abstract class LLMHandler {
 
     abstract messageFormatter(): string
 
-    convFormatter() {
+    convFormatter(
+        user_content_formatter: (content: string) => string = (content) => {
+            return `${this.character_sheets['user'].display_name}「${content}」\n`
+        },
+        assistant_content_formatter: (content: string) => string = (content) => {
+            return `${content}\n`
+        }) {
         let conv_log = ""
         let conv_list = this.current_conversation || []
 
@@ -166,14 +159,12 @@ abstract class LLMHandler {
 
                 // ユーザの発言を挿入
                 if (role == "user") {
-                    conv_log += `${this.character_sheets['user'].display_name}「${content}」\n`
+                    conv_log += user_content_formatter(content)
                 }
 
                 //botの発言を挿入
                 if (role == "assistant") {
-                    // const bracket_idx = content.indexOf('「')
-                    // conv_log += `${content.substring(bracket_idx)}\n`
-                    conv_log += `${content}\n`
+                    conv_log += assistant_content_formatter(content)
                 }
             }
             return conv_log
@@ -205,7 +196,7 @@ abstract class LLMHandler {
                     const bracket_split = element.split('」')
                     if (bracket_split.length > 1) {
                         console.log("セリフ:", JSON.stringify(bracket_split));
-                        this.current_conversation.push({ role: "assistant", content: `${this.character_sheets['bot'].display_name}「${bracket_split[0].replace('\n', '')}」` })
+                        this.current_conversation.push({ role: "assistant", content: `${bracket_split[0].replace('\n', '')}` })
                         if (bracket_split[1] !== '') {
                             this.current_conversation.push({ role: "system", content: bracket_split[1].replace('\n', '') })
                         }
@@ -213,7 +204,7 @@ abstract class LLMHandler {
                     } else if (!/^(\s)*$/.test(element) && element != '') {
                         // 通常の要素に対する処理
                         let fixed_content = element
-                        console.log("その他:", fixed_content);
+                        console.log("その他のみ:", fixed_content);
                         this.current_conversation.push({ role: "system", content: fixed_content.replace('\n', '') })
                     }
                 })
@@ -225,7 +216,7 @@ abstract class LLMHandler {
         }
     }
 
-    abstract chunkProcesser(streamProcessData: StreamProcessData): { ttsBuffer: string, streamBuffer: string, diff: string, spk_label: string, isFirstTtsChunk: boolean, breakFlag: boolean }
+    abstract chunkProcesser(streamProcessData: StreamProcessData): { ttsBuffer: string, streamBuffer: string, diff: string, spk_label: string, isFirstTtsChunk: boolean, breakFlag: boolean; regenFlag: boolean }
 
     async streamProcesser(stream?: AsyncIterableIterator<any> | ChatCompletionStream) {
         if (stream === undefined) return
@@ -234,6 +225,7 @@ abstract class LLMHandler {
         let diff = ""
         let spk_label = "system"
         let isFirstTtsChunk = true
+        let regenFlag = false
 
         // 正規表現を用いて句読点などを
         const punctuationRegex = /([\/#!$%\^&\*;:{}=\-_`~()？！、。」])/;
@@ -265,6 +257,7 @@ abstract class LLMHandler {
                 diff = newData.diff
                 spk_label = newData.spk_label
                 isFirstTtsChunk = newData.isFirstTtsChunk
+                regenFlag = newData.regenFlag
                 if (newData.breakFlag) {
                     break;
                 }
@@ -278,8 +271,11 @@ abstract class LLMHandler {
                 this.ee.emit('llmh:data', { ttsBuffer: ttsBuffer, streamBuffer: streamBuffer, diff: diff, spk_label: spk_label, idx: this.stream_chunk_idx, label: 'end' })
             }
             this.generatedTextPusher(streamBuffer)
-
+            console.log(`\n\nabort call.\n\n`)
             this.abortController?.abort()
+            if (regenFlag) {
+                this.sendMessage()
+            }
         } catch (e: any) {
             // 中断された場合、重複を回避してassistantの発言を会話履歴に追加する
             if (e.name === 'AbortError') {

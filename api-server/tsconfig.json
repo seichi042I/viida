@@ -33,9 +33,9 @@
   },
   "include": [
     "**/*.ts",
-    "src/Modules/KoboldCppHandler.ts",
-    "src/Modules/ChatGPTHandler.ts",
+    "src/Modules/LLMHanders/KoboldCppHandler.ts",
+    "src/Modules/LLMHanders/ChatGPTHandler.ts",
     "src/Modules/CharacterSheet.ts",
-    "src/Modules/LLMHandler.ts"
+    "src/Modules/LLMHanders/LLMHandler.ts"
   ]
 }

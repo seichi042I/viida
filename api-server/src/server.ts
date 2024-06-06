@@ -2,10 +2,11 @@ import http from 'http';
 import https from 'https';
 import { WebSocketServer } from 'ws';
 import fs from 'fs';
-import ChatGPTHandler from './Modules/ChatGPTHandler';
+import ChatGPTHandler from './Modules/LLMHanders/ChatGPTHandler';
 import EventEmitter from 'eventemitter3';
-import KoboldCppHandler from './Modules/KoboldCppHandler';
+import KoboldCppHandler from './Modules/LLMHanders/KoboldCppHandler';
 import SBV2Api from './Modules/sbv2_api_test';
+import OllamaHandler from './Modules/LLMHanders/OllamaHandler';
 
 // HTTPSサーバのオプション
 // const httpsOptions: https.ServerOptions = {
@@ -39,26 +40,28 @@ const setupWebSocketServer = (server: any) => {
     const ee = new EventEmitter();
     const cgpth = new ChatGPTHandler(ee);
     const kbh = new KoboldCppHandler(ee, `http://${process.env.WSL2_IP}:5001`)
+    const ollh = new OllamaHandler('ninja-v1-NSFW-128k:latest', ee,)
+    const llmh = ollh   //テストのため直接指定
     const sbv2 = new SBV2Api('http://sbv2:5000')
-    cgpth.sendMessage();
+    // llmh.sendMessage();
 
     ws.on('message', (message: string) => {
       const data = JSON.parse(message);
       if (data['type'] === "user_prompt") {
         if (data['data'] !== '') {
-          cgpth.insertUserPrompt(data['data']);
+          llmh.insertUserPrompt(data['data']);
+
           ws.send(JSON.stringify({ diff: `${kbh.character_sheets['user'].display_name}「${data['data']}」\n` }))
         } else {
         }
       }
-      cgpth.sendMessage();
+      llmh.sendMessage();
     });
 
     ws.on('close', () => {
       console.log('WebSocket disconnected');
     });
 
-    ee.on('cgpth:data', (event) => { ws.send(JSON.stringify(event)) });
     ee.on('llmh:data', (event) => { ws.send(JSON.stringify(event)) });
   });
 };
