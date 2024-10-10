@@ -5,7 +5,7 @@ class CharacterSheets {
     [key: string]: any;
 
     constructor(characters?: Characters) {
-        this.characters = characters || { user: { initial_label: "user" }, bot: { initial_label: "少女" } }
+        this.characters = characters || { user: { initial_label: "user" }, bot: { initial_label: "assistant" } }
 
         return new Proxy(this, {
             get(target, property) {
